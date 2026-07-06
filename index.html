@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Previsore di scie di condensazione — Italia</title>
+<style>
+  :root{
+    --bg:#0B1220; --panel:#101A2C; --line:#22314A; --line2:#1A2740;
+    --txt:#E8EEF6; --mut:#8CA0B8; --dim:#5A6B84;
+    --ice:#3E9FBB; --ice2:#BDEFFA; --amb:#8A6A2F; --amb2:#F0D9A8;
+    --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--sans);padding:20px 14px 48px}
+  .wrap{max-width:980px;margin:0 auto}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--mut);text-transform:uppercase}
+  h1{margin:6px 0 2px;font-size:26px;font-weight:700;letter-spacing:-.01em}
+  .sub{font-size:13px;color:var(--mut)}
+  header{border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:18px}
+  .cities{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px}
+  .cities button{font-family:var(--mono);font-size:12px;padding:6px 10px;cursor:pointer;border-radius:4px;
+    border:1px solid var(--line);background:transparent;color:var(--mut)}
+  .cities button.on{border-color:var(--ice);background:#14304A;color:var(--ice2)}
+  .panel{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px 16px;margin-bottom:26px}
+  .panel-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+  .panel-title{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--ice2);text-transform:uppercase}
+  .btn{font-family:var(--mono);font-size:12px;padding:5px 12px;border-radius:4px;border:1px solid var(--ice);
+    background:transparent;color:var(--ice2);cursor:pointer}
+  .warn{margin-top:10px;font-size:13px;color:var(--amb2)}
+  .note{margin-top:10px;font-size:13px;color:var(--mut)}
+  table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:12.5px;margin-top:12px}
+  th{padding:4px 10px 6px 0;font-weight:500;white-space:nowrap;color:var(--dim);text-align:left}
+  td{padding:6px 10px 6px 0;white-space:nowrap}
+  tr+tr td{border-top:1px solid var(--line2)}
+  td a{color:var(--ice2);text-decoration:none}
+  .chip{padding:2px 8px;border-radius:4px;white-space:nowrap}
+  .days{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:22px}
+  .day{border:1px solid var(--line);border-radius:6px;padding:10px 12px;background:var(--panel)}
+  .day .d{font-family:var(--mono);font-size:11px;color:var(--mut);text-transform:capitalize}
+  .day .v{font-size:13px;margin-top:4px;line-height:1.35}
+  .scroll{overflow-x:auto;padding-bottom:6px}
+  .rowlab{width:86px;flex-shrink:0;font-family:var(--mono);font-size:11px;color:var(--mut);line-height:1.2}
+  .rowlab b{color:var(--txt);font-weight:600}
+  .lvl{display:flex;align-items:center;margin-bottom:3px}
+  .cells{display:flex;gap:1px}
+  .cell{width:12px;height:26px;cursor:pointer;border-radius:2px}
+  .cell.sel{outline:2px solid var(--txt)}
+  .hlab{width:12px;font-family:var(--mono);font-size:9px;color:var(--dim);text-align:center}
+  .dlab{font-family:var(--mono);font-size:10px;color:var(--mut);text-transform:capitalize}
+  #cellinfo{margin-top:14px;border:1px solid var(--line);border-radius:6px;padding:10px 14px;
+    background:var(--panel);font-family:var(--mono);font-size:13px;display:none}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:16px}
+  .legend div{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mut)}
+  .sw{width:14px;height:14px;border-radius:3px;border:1px solid var(--line)}
+  footer{margin-top:26px;border-top:1px solid var(--line);padding-top:14px;font-size:13px;
+    color:var(--mut);line-height:1.55;max-width:720px}
+  footer b{color:var(--txt)}
+  .loadmsg{font-family:var(--mono);color:var(--mut);padding:40px 0}
+  .ibtn{font-family:var(--mono);font-size:11px;width:20px;height:20px;border-radius:50%;
+    border:1px solid var(--mut);background:transparent;color:var(--mut);cursor:pointer;
+    padding:0;line-height:1;vertical-align:middle;margin-left:8px}
+  .ibtn:hover{border-color:var(--ice2);color:var(--ice2)}
+  .ibox{display:none;margin-top:10px;border:1px solid var(--line2);border-left:3px solid var(--ice);
+    border-radius:6px;padding:10px 12px;font-size:13px;color:var(--mut);line-height:1.5;background:#0D1626}
+  .ibox b{color:var(--txt)}
+  .sechead{display:flex;align-items:center;font-family:var(--mono);font-size:12px;
+    letter-spacing:.12em;color:var(--ice2);text-transform:uppercase;margin:0 0 10px}
+  #radar{width:100%;aspect-ratio:1/1;display:block;margin-top:12px;background:#0A101D;
+    border:1px solid var(--line2);border-radius:8px;max-height:70vh}
+  #ar{position:fixed;inset:0;background:#000;z-index:50;display:none}
+  #arVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  #arCanvas{position:absolute;inset:0;width:100%;height:100%}
+  #arClose{position:absolute;top:14px;right:14px;z-index:2;font-family:var(--mono);font-size:14px;
+    padding:8px 14px;border-radius:6px;border:1px solid #fff5;background:#000a;color:#fff;cursor:pointer}
+  #arMsg{position:absolute;bottom:18px;left:12px;right:12px;z-index:2;font-family:var(--mono);
+    font-size:12px;color:#fff;text-shadow:0 1px 3px #000;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Sezione verticale + traffico live · atmosfera superiore · Italia</div>
+    <h1>Previsore di scie di condensazione</h1>
+    <div class="sub">Schmidt-Appleman per singolo aereo · meteo Open-Meteo · traffico ADS-B (adsb.lol)</div>
+  </header>
+
+  <div class="cities" id="cities"></div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-title" id="trafficTitle">Adesso in quota · raggio 75 km</div>
+      <button class="ibtn" onclick="toggleInfo('info-traffic')" aria-label="Spiegazione">i</button>
+      <button class="btn" id="btnAR" style="margin-left:auto">📷 Punta al cielo</button>
+      <button class="btn" id="btnPlanes">↻ Aggiorna</button>
+    </div>
+    <div class="ibox" id="info-traffic">
+      <b>Cosa vedi.</b> Gli aerei realmente in volo entro 75 km, rilevati dai transponder di bordo tramite
+      ricevitori amatoriali a terra (rete ADS-B). Compaiono solo quelli in crociera sopra gli 8 km: più in basso
+      l'aria è troppo calda per formare scie.<br><br>
+      <b>Come si legge.</b> Ogni riga è un volo. <b>Tipo</b>: modello di aereo, da cui è stimato <b>η</b>,
+      il rendimento del motore (più è alto, più scarico freddo e umido → scie più facili).
+      <b>T</b> e <b>RH<sub>ghiaccio</sub></b>: temperatura e umidità dell'aria alla quota esatta dell'aereo.
+      <b>Verdetto</b>: cosa sta lasciando dietro di sé in questo momento. <b>Durata stimata</b>: quanto la scia
+      resterà visibile in cielo. Tocca il codice volo per vedere rotta e dettagli su una mappa esterna.<br><br>
+      <b>Il radar.</b> Gli aeroplanini si muovono sulla rotta e alla velocità reali trasmesse dal transponder;
+      tra un aggiornamento e l'altro la posizione avanza per stima. La scia dietro ciascuno segue il suo
+      verdetto: assente, breve che svanisce, o persistente che si allarga. I cerchi indicano 25, 50 e 75 km.
+    </div>
+    <canvas id="radar"></canvas>
+    <div id="planesOut"></div>
+  </div>
+
+  <div id="wxOut"><div class="loadmsg">Scarico i radiosondaggi previsti…</div></div>
+
+  <footer>
+    <b>Il metodo.</b> Per ogni aereo rilevato via ADS-B: quota geometrica reale, meteo interpolato
+    tra i livelli 300/250/200 hPa, rendimento propulsivo η stimato dal tipo di aeromobile, criterio di
+    Schmidt-Appleman (1953) calcolato su misura. Se l'aria è sovrassatura rispetto al ghiaccio
+    (RH<sub>ghiaccio</sub> ≥ 100%) i cristalli non evaporano e la scia persiste; oltre il ~110% si allarga
+    in cirri. La previsione a 72 ore usa η = 0,35 (flotta media). Fonti: Open-Meteo per il meteo in quota,
+    reti comunitarie ADS-B per il traffico.
+  </footer>
+</div>
+
+<div id="ar">
+  <video id="arVideo" autoplay playsinline muted></video>
+  <canvas id="arCanvas"></canvas>
+  <button id="arClose">✕ Chiudi</button>
+  <div id="arMsg"></div>
+</div>
+
+<script>
+"use strict";
+
+const CITIES=[
+  {name:"Bolzano",lat:46.4983,lon:11.3548},{name:"Milano",lat:45.4642,lon:9.19},
+  {name:"Torino",lat:45.0703,lon:7.6869},{name:"Venezia",lat:45.4408,lon:12.3155},
+  {name:"Bologna",lat:44.4949,lon:11.3426},{name:"Firenze",lat:43.7696,lon:11.2558},
+  {name:"Roma",lat:41.9028,lon:12.4964},{name:"Napoli",lat:40.8518,lon:14.2681},
+  {name:"Bari",lat:41.1171,lon:16.8719},{name:"Brindisi",lat:40.6327,lon:17.9418},
+  {name:"Palermo",lat:38.1157,lon:13.3615},{name:"Cagliari",lat:39.2238,lon:9.1217},
+];
+const LEVELS=[{p:200,fl:"FL390"},{p:250,fl:"FL340"},{p:300,fl:"FL300"}];
+const ETA_MAP=[
+  {re:/^(A35|B78|A2.N|B38|B39|A21N|A20N|BCS|E29)/,eta:0.40,gen:"nuova gen."},
+  {re:/^(B77|B76|B75|B73|A31|A32|A33|A34|E19|E17|B74)/,eta:0.35,gen:"gen. classica"},
+  {re:/^(CRJ|AT|DH8|SF3|F70|F100|MD)/,eta:0.30,gen:"regionale"},
+];
+const etaFor=t=>{if(!t)return{eta:0.35,gen:"sconosciuto"};for(const m of ETA_MAP)if(m.re.test(t))return m;return{eta:0.35,gen:"stima std"}};
+
+const CLS=[
+  {label:"Nessuna scia",color:"#22314A",text:"#8CA0B8"},
+  {label:"Scia breve (evapora)",color:"#8A6A2F",text:"#F0D9A8"},
+  {label:"Scia persistente",color:"#3E9FBB",text:"#0B1220"},
+  {label:"Persistente, in espansione",color:"#BDEFFA",text:"#0B1220"},
+];
+
+const esWater=t=>611.2*Math.exp(17.62*t/(243.12+t));
+const esIce=t=>611.2*Math.exp(22.46*t/(272.62+t));
+
+function classify(tC,rh,pHpa,eta=0.35){
+  if(tC==null||rh==null||pHpa==null)return null;
+  const rhIce=rh*(esWater(tC)/esIce(tC));
+  const G=(1.25*1004*(pHpa*100))/(0.622*43e6*(1-eta));
+  const eAmb=(rh/100)*esWater(tC);
+  let forms=false;
+  for(let tm=tC;tm<=tC+45;tm+=0.25){
+    if(eAmb+G*(tm-tC)>=esWater(tm)){forms=true;break;}
+  }
+  let cls;
+  if(!forms)cls=0; else if(rhIce<100)cls=1; else if(rhIce<110)cls=2; else cls=3;
+  return{cls,rhIce:Math.round(rhIce),tC:Math.round(tC)};
+}
+
+let city=CITIES[0], wx=null, nowIdx=null, profile=null, selCell=null;
+
+const $=id=>document.getElementById(id);
+function toggleInfo(id){
+  const el=$(id);
+  if(el)el.style.display=el.style.display==="block"?"none":"block";
+}
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const dayName=iso=>new Date(iso+"T12:00").toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"short"});
+
+// ── Città ──
+function renderCities(){
+  $("cities").innerHTML=CITIES.map(c=>
+    `<button class="${c.name===city.name?"on":""}" data-c="${c.name}">${c.name}</button>`).join("");
+  $("cities").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    city=CITIES.find(c=>c.name===b.dataset.c);
+    radar.planes.clear();
+    renderCities(); loadWx(); loadPlanes();
+  });
+  $("trafficTitle").textContent=`Adesso sopra ${city.name} · raggio 75 km`;
+}
+
+// ── Meteo ──
+async function loadWx(){
+  $("wxOut").innerHTML='<div class="loadmsg">Scarico i radiosondaggi previsti…</div>';
+  wx=null;profile=null;selCell=null;
+  const vars=LEVELS.flatMap(L=>[`temperature_${L.p}hPa`,`relative_humidity_${L.p}hPa`,`geopotential_height_${L.p}hPa`]).join(",");
+  try{
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&hourly=${vars}&forecast_days=3&timezone=auto`);
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    wx=await r.json();
+  }catch(e){
+    $("wxOut").innerHTML=`<div class="panel warn" style="margin:0">Impossibile raggiungere Open-Meteo (${esc(e.message||e)}). Controlla la connessione e ricarica.</div>`;
+    return;
+  }
+  const off=wx.utc_offset_seconds||0;
+  const local=new Date(Date.now()+off*1000).toISOString().slice(0,13);
+  nowIdx=Math.max(0,wx.hourly.time.findIndex(t=>t.slice(0,13)===local));
+  profile=LEVELS.map(L=>({
+    p:L.p,
+    h:wx.hourly[`geopotential_height_${L.p}hPa`][nowIdx],
+    tC:wx.hourly[`temperature_${L.p}hPa`][nowIdx],
+    rh:wx.hourly[`relative_humidity_${L.p}hPa`][nowIdx],
+  })).filter(x=>x.h!=null).sort((a,b)=>a.h-b.h);
+  renderWx();
+  radarSync();   // ricalcola i verdetti col profilo appena scaricato
+  renderPlanes();
+}
+
+function atAltitude(hM){
+  if(!profile||profile.length<2)return null;
+  let a=profile[0],b=profile[1];
+  if(hM>=profile[profile.length-1].h){a=profile[profile.length-2];b=profile[profile.length-1];}
+  else for(let i=0;i<profile.length-1;i++)
+    if(hM>=profile[i].h&&hM<=profile[i+1].h){a=profile[i];b=profile[i+1];break;}
+  const f=Math.max(-0.3,Math.min(1.3,(hM-a.h)/(b.h-a.h)));
+  return{
+    tC:a.tC+f*(b.tC-a.tC),
+    rh:Math.max(0,a.rh+f*(b.rh-a.rh)),
+    p:Math.exp(Math.log(a.p)+f*(Math.log(b.p)-Math.log(a.p))),
+  };
+}
+
+// ── Griglia previsionale ──
+function renderWx(){
+  const times=wx.hourly.time;
+  const rows=LEVELS.map(L=>times.map((_,i)=>classify(
+    wx.hourly[`temperature_${L.p}hPa`][i],
+    wx.hourly[`relative_humidity_${L.p}hPa`][i],L.p)));
+  const days=[];
+  times.forEach((t,i)=>{
+    const d=t.slice(0,10);
+    if(!days.length||days[days.length-1].date!==d)days.push({date:d,start:i,end:i});
+    else days[days.length-1].end=i;
+  });
+  days.forEach(day=>{
+    let pers=0,tot=0;
+    for(let i=day.start;i<=day.end;i++){
+      const h=parseInt(times[i].slice(11,13),10);
+      if(h<7||h>21)continue;
+      tot++;
+      if(rows.some(r=>r[i]&&r[i].cls>=2))pers++;
+    }
+    day.share=tot?pers/tot:0;
+  });
+  const verdict=s=>
+    s>=0.6?{t:"Scie persistenti probabili per gran parte del giorno",c:CLS[3].color}:
+    s>=0.25?{t:"Scie persistenti in alcune fasce orarie",c:CLS[2].color}:
+    s>0?{t:"Prevalgono scie brevi; persistenza sporadica",c:CLS[1].color}:
+    {t:"Aria secca in quota: scie assenti o brevissime",c:CLS[0].text};
+
+  let html=`<div class="sechead">Verdetti giornalieri
+    <button class="ibtn" onclick="toggleInfo('info-days')" aria-label="Spiegazione">i</button></div>
+  <div class="ibox" id="info-days" style="margin:0 0 10px">
+    <b>Cosa vedi.</b> Una sintesi per ciascuno dei prossimi tre giorni.<br><br>
+    <b>Come si legge.</b> Il verdetto conta quante ore diurne (7–21) hanno condizioni di persistenza
+    ad almeno una delle tre quote di crociera. Più ore → più probabile un cielo rigato di scie che
+    restano e si allargano. Il colore del bordo riprende la legenda in fondo.
+  </div>
+  <div class="days">`+days.map(d=>{
+    const v=verdict(d.share);
+    return `<div class="day" style="border-left:3px solid ${v.c}"><div class="d">${dayName(d.date)}</div><div class="v">${v.t}</div></div>`;
+  }).join("")+"</div>";
+
+  html+=`<div class="sechead">Sezione verticale · 72 ore
+    <button class="ibtn" onclick="toggleInfo('info-grid')" aria-label="Spiegazione">i</button></div>
+  <div class="ibox" id="info-grid" style="margin:0 0 10px">
+    <b>Cosa vedi.</b> Non aerei: <b>l'aria</b>. È una previsione dell'atmosfera alle quote di crociera
+    per le prossime 72 ore, ora per ora.<br><br>
+    <b>Come si legge.</b> Ogni quadratino è un'ora a una quota: le tre righe sono i livelli di volo
+    (FL390 ≈ 12 km in alto, FL300 ≈ 9,5 km in basso), le colonne scorrono nel tempo da sinistra a destra.
+    Il colore dice cosa succederebbe alla scia di un aereo che passasse lì in quel momento — niente scia,
+    scia che evapora, scia che persiste, scia che si allarga in cirri (legenda in fondo).
+    Tocca un quadratino per vedere temperatura e umidità esatte. Due quote nello stesso momento possono
+    dare esiti opposti: per questo aerei vicini nel cielo possono lasciare scie diversissime.
+  </div>
+  <div class="scroll"><div style="min-width:${times.length*13+90}px">`;
+  LEVELS.forEach((L,li)=>{
+    const h=wx.hourly[`geopotential_height_${L.p}hPa`][nowIdx];
+    html+=`<div class="lvl"><div class="rowlab"><b>${L.fl}</b><br>${L.p} hPa${h?` · ${(h/1000).toFixed(1)} km`:""}</div><div class="cells">`;
+    rows[li].forEach((c,hi)=>{
+      html+=`<div class="cell" data-li="${li}" data-hi="${hi}" style="background:${c?CLS[c.cls].color:"#141E30"}"></div>`;
+    });
+    html+="</div></div>";
+  });
+  html+='<div style="display:flex;margin-top:4px"><div style="width:86px;flex-shrink:0"></div><div class="cells">';
+  times.forEach(t=>{
+    const h=t.slice(11,13);
+    html+=`<div class="hlab" style="${h==="00"?"color:var(--txt)":""}">${h==="00"?"│":(h%6===0?h:"")}</div>`;
+  });
+  html+='</div></div><div style="display:flex"><div style="width:86px;flex-shrink:0"></div>';
+  days.forEach(d=>{html+=`<div class="dlab" style="width:${(d.end-d.start+1)*13}px">${dayName(d.date)}</div>`;});
+  html+="</div></div></div>";
+
+  html+='<div id="cellinfo"></div><div class="legend">'+CLS.map(c=>
+    `<div><div class="sw" style="background:${c.color}"></div>${c.label}</div>`).join("")+"</div>";
+
+  $("wxOut").innerHTML=html;
+  $("wxOut").querySelectorAll(".cell").forEach(el=>el.onclick=()=>{
+    $("wxOut").querySelectorAll(".cell.sel").forEach(x=>x.classList.remove("sel"));
+    el.classList.add("sel");
+    const li=+el.dataset.li,hi=+el.dataset.hi,c=rows[li][hi];
+    const info=$("cellinfo");
+    if(c){
+      const col=CLS[c.cls].color==="#22314A"?"var(--mut)":CLS[c.cls].color;
+      info.style.display="block";
+      info.innerHTML=`<span style="color:${col}">■</span> ${CLS[c.cls].label} · ${times[hi].replace("T"," ")} · ${LEVELS[li].fl} · T ${c.tC} °C · RH<sub>ghiaccio</sub> ${c.rhIce}%`;
+    }
+  });
+}
+
+// ── Traffico ADS-B ──
+let lastPlanes=null,lastLow=0,lastProv=null;
+const ADSB_PROVIDERS=[
+  {name:"adsb.lol",url:c=>`https://api.adsb.lol/v2/lat/${c.lat}/lon/${c.lon}/dist/40`},
+  {name:"adsb.fi",url:c=>`https://opendata.adsb.fi/api/v3/lat/${c.lat}/lon/${c.lon}/dist/40`},
+  {name:"adsb.lol via proxy",url:c=>`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://api.adsb.lol/v2/lat/${c.lat}/lon/${c.lon}/dist/40`)}`},
+  {name:"adsb.fi via proxy",url:c=>`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://opendata.adsb.fi/api/v3/lat/${c.lat}/lon/${c.lon}/dist/40`)}`},
+];
+async function loadPlanes(){
+  $("planesOut").innerHTML='<div class="note">Interrogo la rete ADS-B…</div>';
+  const errs=[];
+  let j=null;
+  for(const prov of ADSB_PROVIDERS){
+    try{
+      const r=await fetch(prov.url(city));
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      j=await r.json();
+      j._prov=prov.name;
+      break;
+    }catch(e){errs.push(`${prov.name}: ${e.message||e}`);}
+  }
+  try{
+    if(!j)throw new Error(errs.join(" · "));
+    const ac=(j.ac||[]).filter(a=>a.alt_baro!=="ground");
+    const highs=[];let low=0;
+    for(const a of ac){
+      const altFt=a.alt_geom??a.alt_baro;
+      if(typeof altFt!=="number")continue;
+      const hM=altFt*0.3048;
+      if(hM<8000){low++;continue;}
+      highs.push({
+        callsign:(a.flight||"").trim()||((a.hex||"").toUpperCase())||"—",
+        type:a.t||null,hM:Math.round(hM),fl:Math.round(altFt/100),
+        lat:a.lat,lon:a.lon,trk:a.track??a.true_heading??null,gs:a.gs??null,
+      });
+    }
+    highs.sort((x,y)=>y.hM-x.hM);
+    lastPlanes=highs;lastLow=low;lastProv=j._prov;
+    radarSync();
+    renderPlanes();
+    loadRoutes();
+  }catch(e){
+    $("planesOut").innerHTML=`<div class="warn">Nessun provider ADS-B raggiungibile (${esc(e.message||e)}).<br><br>
+    Se questo file è aperto <b>nell'anteprima di Claude</b>, la sandbox blocca tutte le chiamate di rete:
+    scarica il file e aprilo nel browser (Chrome/Firefox). Se sei già nel browser, riprova tra qualche secondo.</div>`;
+  }
+}
+
+function trailLife(c){
+  if(!c)return"—";
+  if(c.cls===0)return"—";
+  if(c.cls===1)return c.rhIce>=85?"1–2 min":"secondi";
+  if(c.cls===2)return"≈10–60 min";
+  return"ore · si allarga in cirri";
+}
+
+function renderPlanes(){
+  if(!lastPlanes)return;
+  if(lastPlanes.length===0){
+    $("planesOut").innerHTML=`<div class="note">Nessun aereo in crociera (&gt;8 km) nel raggio in questo momento${lastLow?` — ${lastLow} sotto gli 8 km, troppo bassi per lasciare scie`:""}.</div>`;
+    return;
+  }
+  let html='<div class="scroll"><table><thead><tr>'+
+    ["Volo","Rotta","Tipo","Quota","η","T","RH₍ghiaccio₎","Verdetto","Durata stimata"].map(h=>`<th>${h}</th>`).join("")+
+    "</tr></thead><tbody>";
+  for(const p of lastPlanes){
+    const w=profile?atAltitude(p.hM):null;
+    const {eta,gen}=etaFor(p.type);
+    const c=w?classify(w.tC,w.rh,w.p,eta):null;
+    html+=`<tr${typeof AR!=="undefined"&&AR.target===p.callsign?' style="background:#14304A"':""}>
+      <td><a href="https://globe.adsbexchange.com/?callsign=${encodeURIComponent(p.callsign)}" target="_blank" rel="noreferrer">${AR&&AR.target===p.callsign?"🎯 ":""}${esc(p.callsign)}</a></td>
+      <td style="color:var(--ice2)">${p.route?esc(p.route):"—"}</td>
+      <td style="color:var(--mut)">${esc(p.type||"?")} <span style="color:var(--dim)">(${gen})</span></td>
+      <td>${(p.hM/1000).toFixed(1)} km · FL${p.fl}</td>
+      <td style="color:var(--mut)">${eta.toFixed(2)}</td>
+      <td>${c?c.tC+" °C":"—"}</td>
+      <td>${c?c.rhIce+"%":"—"}</td>
+      <td>${c?`<span class="chip" style="background:${CLS[c.cls].color};color:${CLS[c.cls].text}">${CLS[c.cls].label}</span>`:"— (meteo in caricamento)"}</td>
+      <td style="color:var(--mut)">${trailLife(c)}</td>
+    </tr>`;
+  }
+  html+="</tbody></table></div>";
+  if(lastLow>0)html+=`<div class="note" style="color:var(--dim);font-size:12px">+ ${lastLow} aerei sotto gli 8 km (salita/discesa): troppo caldi per formare scie.</div>`;
+  if(lastProv)html+=`<div class="note" style="color:var(--dim);font-size:11px;font-family:var(--mono)">fonte traffico: ${esc(lastProv)}${lastRouteSrc?` · rotte: ${esc(lastRouteSrc)}`:""}</div>`;
+  $("planesOut").innerHTML=html;
+}
+
+$("btnPlanes").onclick=loadPlanes;
+
+// ── Radar animato ──
+const radar={planes:new Map(),canvas:null,ctx:null,last:performance.now()};
+
+// sagoma aeroplanino (muso verso l'alto), scala in dpr
+function drawPlaneIcon(ctx,dpr){
+  const s=0.95*dpr;
+  const pts=[
+    [0,-7.5],[1.1,-4.5],[1.1,-1.5],[7,1.6],[7,2.9],[1.1,1.4],
+    [1,4.2],[3.2,5.9],[3.2,7],[0,6],
+    [-3.2,7],[-3.2,5.9],[-1,4.2],[-1.1,1.4],[-7,2.9],[-7,1.6],[-1.1,-1.5],[-1.1,-4.5],
+  ];
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0]*s,pts[0][1]*s);
+  for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0]*s,pts[i][1]*s);
+  ctx.closePath();ctx.fill();
+}
+
+// rotte (partenza → destinazione): adsbdb.com, poi hexdb.io, poi proxy — con cache per sessione
+const routeCache=new Map();
+let lastRouteSrc=null;
+
+async function lookupRoute(callsign){
+  if(routeCache.has(callsign))return routeCache.get(callsign);
+  const tries=[
+    {src:"adsbdb",u:`https://api.adsbdb.com/v0/callsign/${encodeURIComponent(callsign)}`,
+     parse:j=>{
+       const fr=j&&j.response&&j.response.flightroute;
+       if(!fr||!fr.origin||!fr.destination)return null;
+       return (fr.origin.iata_code||fr.origin.icao_code)+" → "+(fr.destination.iata_code||fr.destination.icao_code);
+     }},
+    {src:"hexdb",u:`https://hexdb.io/api/v1/route/icao/${encodeURIComponent(callsign)}`,
+     parse:j=>(j&&j.route&&j.route!=="unknown")?j.route.replace(/-/g," → "):null},
+  ];
+  for(const t of tries){
+    for(const u of[t.u,`https://api.allorigins.win/raw?url=${encodeURIComponent(t.u)}`]){
+      const viaProxy=u!==t.u;
+      try{
+        const r=await fetch(u);
+        if(!r.ok)continue;
+        const j=await r.json();
+        const route=t.parse(j);
+        if(route){
+          routeCache.set(callsign,route);
+          lastRouteSrc=t.src+(viaProxy?" via proxy":"");
+          return route;
+        }
+        break; // fonte raggiunta ma rotta ignota: prova la fonte successiva
+      }catch(e){}
+    }
+  }
+  routeCache.set(callsign,null);
+  return null;
+}
+
+async function loadRoutes(){
+  if(!lastPlanes||!lastPlanes.length)return;
+  const targets=lastPlanes.filter(p=>p.callsign&&p.callsign!=="—"&&!p.route).slice(0,12);
+  if(!targets.length)return;
+  let got=false;
+  for(const p of targets){
+    const r=await lookupRoute(p.callsign);
+    if(r){p.route=r;got=true;}
+  }
+  if(got){
+    renderPlanes();
+    for(const p of lastPlanes){
+      const o=radar.planes.get(p.callsign);
+      if(o&&p.route)o.route=p.route;
+    }
+  }else if(!lastRouteSrc){
+    lastRouteSrc="nessuna fonte raggiungibile";
+    renderPlanes();
+  }
+}
+
+function radarSync(){
+  if(!lastPlanes)return;
+  const seen=new Set();
+  const cosLat=Math.cos(city.lat*Math.PI/180);
+  for(const p of lastPlanes){
+    if(p.lat==null||p.lon==null)continue;
+    seen.add(p.callsign);
+    const xKm=(p.lon-city.lon)*111.32*cosLat;
+    const yKm=(city.lat-p.lat)*111.32; // y positivo = sud (asse canvas)
+    const kmS=((p.gs||450)*1.852)/3600;
+    const rad=((p.trk??0)*Math.PI)/180;
+    const vx=kmS*Math.sin(rad), vy=-kmS*Math.cos(rad);
+    const w=profile?atAltitude(p.hM):null;
+    const c=w?classify(w.tC,w.rh,w.p,etaFor(p.type).eta):null;
+    const cls=c?c.cls:0;
+    let o=radar.planes.get(p.callsign);
+    if(!o){
+      o={trail:[],tAcc:0,cls:0};
+      radar.planes.set(p.callsign,o);
+    }
+    // pre-semina (o ri-semina) la scia quando il verdetto lo giustifica
+    if(cls>=1&&o.trail.length===0){
+      const back=cls>=2?200:30;
+      for(let s=back;s>0;s-=2)
+        o.trail.push({x:xKm-vx*s,y:yKm-vy*s,t:performance.now()-s*1000});
+    }
+    Object.assign(o,{x:xKm,y:yKm,vx,vy,trkRad:rad,cls,callsign:p.callsign,route:p.route||o.route});
+  }
+  for(const k of radar.planes.keys())if(!seen.has(k))radar.planes.delete(k);
+}
+
+function radarFrame(now){
+  const cv=radar.canvas;
+  if(!cv){requestAnimationFrame(radarFrame);return;}
+  const dpr=window.devicePixelRatio||1;
+  const w=cv.clientWidth;
+  if(w&&cv.width!==Math.round(w*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(w*dpr);}
+  const ctx=radar.ctx,S=cv.width,cx=S/2,cy=S/2;
+  const pxKm=(S/2-16*dpr)/75;
+  const dt=Math.min(2,(now-radar.last)/1000);
+  radar.last=now;
+  ctx.clearRect(0,0,S,S);
+
+  // cerchi di distanza e assi cardinali
+  ctx.strokeStyle="#1A2740";ctx.lineWidth=dpr;
+  ctx.beginPath();ctx.moveTo(cx,cy-75*pxKm);ctx.lineTo(cx,cy+75*pxKm);
+  ctx.moveTo(cx-75*pxKm,cy);ctx.lineTo(cx+75*pxKm,cy);ctx.stroke();
+  ctx.strokeStyle="#22314A";
+  ctx.font=`${10*dpr}px ui-monospace,monospace`;ctx.fillStyle="#5A6B84";
+  for(const r of[25,50,75]){
+    ctx.beginPath();ctx.arc(cx,cy,r*pxKm,0,6.284);ctx.stroke();
+    ctx.fillText(r,cx+3*dpr,cy-r*pxKm+11*dpr);
+  }
+  ctx.fillStyle="#8CA0B8";ctx.fillText("N",cx-3*dpr,cy-75*pxKm-4*dpr);
+
+  // città
+  ctx.fillStyle="#BDEFFA";
+  ctx.beginPath();ctx.arc(cx,cy,2.5*dpr,0,6.284);ctx.fill();
+  ctx.fillStyle="#8CA0B8";ctx.fillText(city.name,cx+6*dpr,cy+4*dpr);
+
+  for(const[key,p]of radar.planes){
+    p.x+=p.vx*dt;p.y+=p.vy*dt;
+    if(Math.hypot(p.x,p.y)>95){radar.planes.delete(key);continue;}
+    p.tAcc+=dt;
+    if(p.cls>=1&&p.tAcc>0.4){p.tAcc=0;p.trail.push({x:p.x,y:p.y,t:now});}
+    const life=p.cls>=3?360:p.cls===2?300:30;
+    while(p.trail.length&&(now-p.trail[0].t)/1000>life)p.trail.shift();
+
+    ctx.lineCap="round";
+    for(let i=1;i<p.trail.length;i++){
+      const a=p.trail[i-1],b=p.trail[i],age=(now-b.t)/1000;
+      const fade=Math.max(0,1-age/life);
+      const wBase=(p.cls>=3?2.4+age/45:2.4)*dpr;
+      // alone morbido
+      ctx.strokeStyle=`rgba(255,255,255,${0.22*fade})`;
+      ctx.lineWidth=wBase*2.6;
+      ctx.beginPath();
+      ctx.moveTo(cx+a.x*pxKm,cy+a.y*pxKm);
+      ctx.lineTo(cx+b.x*pxKm,cy+b.y*pxKm);
+      ctx.stroke();
+      // nucleo bianco
+      ctx.strokeStyle=`rgba(255,255,255,${(p.cls===1?0.8:1)*fade})`;
+      ctx.lineWidth=wBase;
+      ctx.beginPath();
+      ctx.moveTo(cx+a.x*pxKm,cy+a.y*pxKm);
+      ctx.lineTo(cx+b.x*pxKm,cy+b.y*pxKm);
+      ctx.stroke();
+    }
+
+    const px=cx+p.x*pxKm,py=cy+p.y*pxKm;
+    ctx.save();ctx.translate(px,py);ctx.rotate(p.trkRad);
+    ctx.fillStyle=p.cls===0?"#8CA0B8":CLS[p.cls].color;
+    drawPlaneIcon(ctx,dpr);
+    ctx.restore();
+    ctx.fillStyle="#8CA0B8";ctx.font=`${9*dpr}px ui-monospace,monospace`;
+    ctx.fillText(p.callsign,px+8*dpr,py-8*dpr);
+    if(p.route){
+      ctx.fillStyle="#5A6B84";
+      ctx.fillText(p.route,px+8*dpr,py+2*dpr);
+    }
+    if(AR.target===p.callsign){
+      ctx.strokeStyle="#BDEFFA";ctx.lineWidth=1.8*dpr;
+      ctx.beginPath();ctx.arc(px,py,(11+2.5*Math.sin(now/220))*dpr,0,6.284);ctx.stroke();
+    }
+  }
+  requestAnimationFrame(radarFrame);
+}
+
+radar.canvas=$("radar");
+if(radar.canvas)radar.ctx=radar.canvas.getContext("2d");
+requestAnimationFrame(radarFrame);
+
+// ── AR: punta il telefono al cielo ──
+const AR={on:false,stream:null,heading:null,pitch:0,pos:null,target:null};
+
+function arMsg(t){$("arMsg").textContent=t;}
+
+function arAngles(p){
+  const la1=AR.pos.lat*Math.PI/180,la2=p.lat*Math.PI/180;
+  const dLon=(p.lon-AR.pos.lon)*Math.PI/180;
+  const az=(Math.atan2(Math.sin(dLon)*Math.cos(la2),
+    Math.cos(la1)*Math.sin(la2)-Math.sin(la1)*Math.cos(la2)*Math.cos(dLon))*180/Math.PI+360)%360;
+  const dxKm=(p.lon-AR.pos.lon)*111.32*Math.cos(la1);
+  const dyKm=(p.lat-AR.pos.lat)*111.32;
+  const dKm=Math.hypot(dxKm,dyKm);
+  const el=Math.atan2(p.hM-(AR.pos.alt||300),dKm*1000)*180/Math.PI;
+  return{az,el,dKm};
+}
+
+function arOrient(e){
+  let h=null;
+  if(typeof e.webkitCompassHeading==="number")h=e.webkitCompassHeading;   // iOS
+  else if(e.alpha!=null){
+    const cand=(360-e.alpha)%360;
+    if(e.absolute){h=cand;AR.hasAbs=true;}   // bussola assoluta: la preferita
+    else if(!AR.hasAbs)h=cand;               // relativa: si aggiorna comunque, meglio di niente
+  }
+  if(h!=null)AR.heading=h;
+  if(e.beta!=null)AR.pitch=e.beta-90; // telefono verticale: 0 = orizzonte, +90 = zenit
+  AR.lastEvt=performance.now();
+}
+
+async function arOpen(){
+  if(!window.isSecureContext){
+    alert("Questa funzione richiede la versione online (HTTPS): GPS, bussola e fotocamera non sono disponibili da file locale.");
+    return;
+  }
+  // permesso sensori (iOS lo richiede dentro un gesto utente: questo click)
+  try{
+    if(typeof DeviceOrientationEvent!=="undefined"&&DeviceOrientationEvent.requestPermission){
+      if(await DeviceOrientationEvent.requestPermission()!=="granted")throw 0;
+    }
+  }catch(e){alert("Senza accesso ai sensori di orientamento non posso capire dove punti.");return;}
+  window.addEventListener("deviceorientationabsolute",arOrient,true);
+  window.addEventListener("deviceorientation",arOrient,true);
+
+  AR.pos={lat:city.lat,lon:city.lon,alt:300}; // ripiego immediato: centro città
+  if(navigator.geolocation)navigator.geolocation.getCurrentPosition(
+    g=>{AR.pos={lat:g.coords.latitude,lon:g.coords.longitude,alt:g.coords.altitude||300};},
+    ()=>{arMsg("GPS non disponibile: uso il centro di "+city.name+" come posizione.");},
+    {enableHighAccuracy:true,timeout:8000});
+
+  try{
+    AR.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
+    $("arVideo").srcObject=AR.stream;
+  }catch(e){arMsg("Fotocamera non disponibile: modalità solo puntatore.");}
+
+  $("ar").style.display="block";
+  AR.on=true;
+  arMsg("Tieni il telefono verticale e inquadra l'aereo. Se la direzione sbanda, muovi il telefono a 8 per calibrare la bussola.");
+  requestAnimationFrame(arFrame);
+}
+
+function arCloseFn(){
+  AR.on=false;
+  if(AR.stream){AR.stream.getTracks().forEach(t=>t.stop());AR.stream=null;}
+  window.removeEventListener("deviceorientationabsolute",arOrient,true);
+  window.removeEventListener("deviceorientation",arOrient,true);
+  $("ar").style.display="none";
+  renderPlanes(); // mostra subito l'evidenziazione in tabella
+}
+
+function arFrame(now){
+  if(!AR.on)return;
+  const cv=$("arCanvas"),ctx=cv.getContext("2d"),dpr=window.devicePixelRatio||1;
+  const W=Math.round(cv.clientWidth*dpr),H=Math.round(cv.clientHeight*dpr);
+  if(cv.width!==W){cv.width=W;cv.height=H;}
+  ctx.clearRect(0,0,W,H);
+  const HFOV=50,VFOV=65; // campo visivo approssimato, telefono verticale
+  ctx.font=`${12*dpr}px ui-monospace,monospace`;
+  ctx.shadowColor="#000";ctx.shadowBlur=4*dpr;
+
+  // mirino
+  ctx.strokeStyle="#ffffff66";ctx.lineWidth=dpr;
+  ctx.beginPath();ctx.arc(W/2,H/2,14*dpr,0,6.284);ctx.stroke();
+
+  let best=null,bestAng=999,bestInfo=null;
+  for(const p of(lastPlanes||[])){
+    if(p.lat==null)continue;
+    const{az,el,dKm}=arAngles(p);
+    const dAz=((az-(AR.heading||0)+540)%360)-180;
+    const dEl=el-AR.pitch;
+    const ang=Math.hypot(dAz,dEl);
+    const w=profile?atAltitude(p.hM):null;
+    const c=w?classify(w.tC,w.rh,w.p,etaFor(p.type).eta):null;
+    const cls=c?c.cls:0;
+    if(Math.abs(dAz)<HFOV/2+8&&Math.abs(dEl)<VFOV/2+8){
+      const x=W/2+dAz/HFOV*W,y=H/2-dEl/VFOV*H;
+      ctx.fillStyle=cls===0?"#8CA0B8":CLS[cls].color;
+      ctx.beginPath();ctx.arc(x,y,7*dpr,0,6.284);ctx.fill();
+      ctx.fillStyle="#fff";
+      ctx.fillText(p.callsign,x+11*dpr,y-4*dpr);
+      ctx.fillText(`${p.route||""} ${Math.round(dKm)} km`,x+11*dpr,y+11*dpr);
+    }
+    if(ang<bestAng){bestAng=ang;best=p;bestInfo={dAz,dEl,dKm,cls};}
+  }
+
+  if(best&&bestAng<12){
+    AR.target=best.callsign;
+    const x=W/2+bestInfo.dAz/HFOV*W,y=H/2-bestInfo.dEl/VFOV*H;
+    ctx.strokeStyle="#BDEFFA";ctx.lineWidth=2.5*dpr;
+    ctx.beginPath();ctx.arc(x,y,(16+3*Math.sin(now/200))*dpr,0,6.284);ctx.stroke();
+    arMsg(`🎯 ${best.callsign}${best.route?" · "+best.route:""} · ${best.type||"?"} · FL${best.fl} · ${Math.round(bestInfo.dKm)} km · ${CLS[bestInfo.cls].label}`);
+  }else if(!AR.lastEvt||now-AR.lastEvt>2500){
+    arMsg("⚠️ Nessun dato dai sensori di orientamento. Da file scaricato il browser blocca bussola e fotocamera: serve la versione online (HTTPS). Controlla anche che il risparmio energetico sia spento.");
+  }else{
+    arMsg(`bussola ${AR.heading!=null?Math.round(AR.heading)+"°":"—"}${AR.hasAbs?"":" (relativa)"} · inclinazione ${Math.round(AR.pitch)}° · muovi il telefono verso un aereo`);
+  }
+  requestAnimationFrame(arFrame);
+}
+
+$("btnAR").onclick=arOpen;
+$("arClose").onclick=arCloseFn;
+
+// aggiornamento automatico del traffico ogni 60 s, solo a pagina visibile
+setInterval(()=>{if(document.visibilityState==="visible")loadPlanes();},60000);
+
+renderCities();
+loadWx();
+loadPlanes();
+</script>
+</body>
+</html>
