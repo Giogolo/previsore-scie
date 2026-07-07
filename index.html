@@ -197,15 +197,36 @@ const dayName=iso=>new Date(iso+"T12:00").toLocaleDateString("it-IT",{weekday:"l
 // ── Città ──
 function renderCities(){
   $("cities").innerHTML=CITIES.map(c=>
-    `<button class="${c.name===city.name?"on":""}" data-c="${c.name}">${c.name}</button>`).join("");
-  $("cities").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    `<button class="${!city.gps&&c.name===city.name?"on":""}" data-c="${c.name}">${c.name}</button>`).join("")+
+    `<button id="btnGps" class="${city.gps?"on":""}" title="Usa il GPS del dispositivo">📍 La mia posizione</button>`;
+  $("cities").querySelectorAll("button[data-c]").forEach(b=>b.onclick=()=>{
     city=CITIES.find(c=>c.name===b.dataset.c);
     try{localStorage.setItem("previsore-citta",city.name)}catch(e){}
     radar.planes.clear();
     lastPlanes=null;lastLow=0; // via i dati della città precedente
     renderCities(); loadWx(); loadPlanes();
   });
-  $("trafficTitle").textContent=`Adesso sopra ${city.name} · raggio 75 km`;
+  $("btnGps").onclick=()=>useGps(false);
+  $("trafficTitle").textContent=`Adesso sopra ${city.gps?"di te":city.name} · raggio 75 km`;
+}
+
+// posizione reale via GPS al posto del centro città: meteo, radar e raggio centrati su di te
+function useGps(initial){
+  const fallback=()=>{if(initial){renderCities();loadWx();loadPlanes();}};
+  if(!("geolocation" in navigator)||!window.isSecureContext){
+    if(!initial)alert("Il GPS richiede la versione online (HTTPS) e un dispositivo con localizzazione.");
+    return fallback();
+  }
+  $("trafficTitle").textContent="📡 Cerco la tua posizione…";
+  navigator.geolocation.getCurrentPosition(g=>{
+    city={name:"la tua posizione",short:"qui",gps:true,lat:g.coords.latitude,lon:g.coords.longitude};
+    try{localStorage.setItem("previsore-citta","@gps")}catch(e){}
+    radar.planes.clear();lastPlanes=null;lastLow=0;
+    renderCities();loadWx();loadPlanes();
+  },err=>{
+    if(!initial)alert(`Posizione non disponibile (${err.message}): resto su ${city.name}.`);
+    renderCities();fallback();
+  },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
 }
 
 // ── Meteo ──
@@ -618,7 +639,7 @@ function radarFrame(now){
   // città
   ctx.fillStyle="#BDEFFA";
   ctx.beginPath();ctx.arc(cx,cy,2.5*dpr,0,6.284);ctx.fill();
-  ctx.fillStyle="#8CA0B8";ctx.fillText(city.name,cx+6*dpr,cy+4*dpr);
+  ctx.fillStyle="#8CA0B8";ctx.fillText(city.short||city.name,cx+6*dpr,cy+4*dpr);
 
   for(const[key,p]of radar.planes){
     p.x+=p.vx*dt;p.y+=p.vy*dt;
@@ -862,8 +883,9 @@ setInterval(()=>{if(document.visibilityState==="visible"){
 }},60000);
 
 renderCities();
-loadWx();
-loadPlanes();
+let savedLoc=null;try{savedLoc=localStorage.getItem("previsore-citta")}catch(e){}
+if(savedLoc==="@gps")useGps(true);   // riparte dal GPS, con ripiego sulla città se non disponibile
+else{loadWx();loadPlanes();}
 </script>
 </body>
 </html>
