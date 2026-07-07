@@ -48,6 +48,9 @@
   .cell{width:12px;height:26px;cursor:pointer;border-radius:2px}
   .cell.sel{outline:2px solid var(--txt)}
   .hlab{width:12px;font-family:var(--mono);font-size:9px;color:var(--dim);text-align:center}
+  .hlab[data-t="│"]{color:var(--txt)}
+  .cell.now{box-shadow:0 0 0 1.5px var(--txt)}
+  .hlab.now{color:var(--ice2)}
   .dlab{font-family:var(--mono);font-size:10px;color:var(--mut);text-transform:capitalize}
   #cellinfo{margin-top:14px;border:1px solid var(--line);border-radius:6px;padding:10px 14px;
     background:var(--panel);font-family:var(--mono);font-size:13px;display:none}
@@ -287,7 +290,8 @@ function renderWx(){
     (FL390 ≈ 12 km in alto, FL300 ≈ 9,5 km in basso), le colonne scorrono nel tempo da sinistra a destra.
     Il colore dice cosa succederebbe alla scia di un aereo che passasse lì in quel momento — niente scia,
     scia che evapora, scia che persiste, scia che si allarga in cirri (legenda in fondo).
-    Tocca un quadratino per vedere temperatura e umidità esatte. Due quote nello stesso momento possono
+    Tocca un quadratino per vedere temperatura e umidità esatte. La colonna bordata di bianco,
+    con ▲ sotto, è l'ora attuale. Due quote nello stesso momento possono
     dare esiti opposti: per questo aerei vicini nel cielo possono lasciare scie diversissime.
   </div>
   <div class="scroll"><div style="min-width:${times.length*13+90}px">`;
@@ -300,9 +304,10 @@ function renderWx(){
     html+="</div></div>";
   });
   html+='<div style="display:flex;margin-top:4px"><div style="width:86px;flex-shrink:0"></div><div class="cells">';
-  times.forEach(t=>{
+  times.forEach((t,i)=>{
     const h=t.slice(11,13);
-    html+=`<div class="hlab" style="${h==="00"?"color:var(--txt)":""}">${h==="00"?"│":(h%6===0?h:"")}</div>`;
+    const lab=h==="00"?"│":(h%6===0?h:"");
+    html+=`<div class="hlab" data-hi="${i}" data-t="${lab}">${lab}</div>`;
   });
   html+='</div></div><div style="display:flex"><div style="width:86px;flex-shrink:0"></div>';
   days.forEach(d=>{html+=`<div class="dlab" style="width:${(d.end-d.start+1)*13}px">${dayName(d.date)}</div>`;});
@@ -323,6 +328,31 @@ function renderWx(){
       info.innerHTML=`<span style="color:${col}">■</span> ${CLS[c.cls].label} · ${times[hi].replace("T"," ")} · ${LEVELS[li].fl} · T ${c.tC} °C · RH<sub>ghiaccio</sub> ${c.rhIce}%`;
     }
   });
+  markNow();
+}
+
+// evidenzia la colonna dell'ora attuale nella sezione verticale; col passare del tempo
+// il segnalino avanza da solo e il profilo meteo dei verdetti resta su quest'ora
+function markNow(){
+  if(!wx)return;
+  const off=wx.utc_offset_seconds||0;
+  const local=new Date(Date.now()+off*1000).toISOString().slice(0,13);
+  const idx=Math.max(0,wx.hourly.time.findIndex(t=>t.slice(0,13)===local));
+  if(idx!==nowIdx){
+    nowIdx=idx;
+    profile=LEVELS.map(L=>({
+      p:L.p,
+      h:wx.hourly[`geopotential_height_${L.p}hPa`][nowIdx],
+      tC:wx.hourly[`temperature_${L.p}hPa`][nowIdx],
+      rh:wx.hourly[`relative_humidity_${L.p}hPa`][nowIdx],
+    })).filter(x=>x.h!=null).sort((a,b)=>a.h-b.h);
+    radarSync();renderPlanes();
+  }
+  document.querySelectorAll(".hlab.now").forEach(el=>{el.classList.remove("now");el.textContent=el.dataset.t;});
+  document.querySelectorAll(".cell.now").forEach(el=>el.classList.remove("now"));
+  document.querySelectorAll(`.cell[data-hi="${nowIdx}"]`).forEach(el=>el.classList.add("now"));
+  const hl=document.querySelector(`.hlab[data-hi="${nowIdx}"]`);
+  if(hl){hl.classList.add("now");hl.textContent="▲";}
 }
 
 // ── Traffico ADS-B ──
@@ -533,17 +563,32 @@ function radarFrame(now){
   radar.last=now;
   ctx.clearRect(0,0,S,S);
 
+  // bussola: se il telefono fornisce l'orientamento assoluto, il radar ruota con te —
+  // in alto c'è sempre la direzione verso cui sei rivolto
+  const hdg=compassHeading();
+  const hr=(hdg==null?0:hdg)*Math.PI/180,chd=Math.cos(hr),shd=Math.sin(hr);
+  const rot=(x,y)=>[x*chd+y*shd,y*chd-x*shd];
+
   // cerchi di distanza e assi cardinali
   ctx.strokeStyle="#1A2740";ctx.lineWidth=dpr;
-  ctx.beginPath();ctx.moveTo(cx,cy-75*pxKm);ctx.lineTo(cx,cy+75*pxKm);
-  ctx.moveTo(cx-75*pxKm,cy);ctx.lineTo(cx+75*pxKm,cy);ctx.stroke();
+  ctx.beginPath();
+  for(const[ax,ay]of[[0,-75],[75,0]]){
+    const[x1,y1]=rot(ax,ay);
+    ctx.moveTo(cx-x1*pxKm,cy-y1*pxKm);ctx.lineTo(cx+x1*pxKm,cy+y1*pxKm);
+  }
+  ctx.stroke();
   ctx.strokeStyle="#22314A";
   ctx.font=`${10*dpr}px ui-monospace,monospace`;ctx.fillStyle="#5A6B84";
   for(const r of[25,50,75]){
     ctx.beginPath();ctx.arc(cx,cy,r*pxKm,0,6.284);ctx.stroke();
     ctx.fillText(r,cx+3*dpr,cy-r*pxKm+11*dpr);
   }
-  ctx.fillStyle="#8CA0B8";ctx.fillText("N",cx-3*dpr,cy-75*pxKm-4*dpr);
+  for(const[t,bx,by]of[["N",0,-1],["E",1,0],["S",0,1],["O",-1,0]]){
+    const[x1,y1]=rot(bx,by),rr=75*pxKm+9*dpr;
+    ctx.fillStyle=t==="N"?"#BDEFFA":"#5A6B84";
+    ctx.fillText(t,cx+x1*rr-3*dpr,cy+y1*rr+3.5*dpr);
+  }
+  if(hdg!=null){ctx.fillStyle="#5A6B84";ctx.fillText(`bussola ${Math.round(hdg)}°`,8*dpr,14*dpr);}
 
   // città
   ctx.fillStyle="#BDEFFA";
@@ -563,24 +608,26 @@ function radarFrame(now){
       const a=p.trail[i-1],b=p.trail[i],age=(now-b.t)/1000;
       const fade=Math.max(0,1-age/life);
       const wBase=(p.cls>=3?2.4+age/45:2.4)*dpr;
+      const[aX,aY]=rot(a.x,a.y),[bX,bY]=rot(b.x,b.y);
       // alone morbido
       ctx.strokeStyle=`rgba(255,255,255,${0.22*fade})`;
       ctx.lineWidth=wBase*2.6;
       ctx.beginPath();
-      ctx.moveTo(cx+a.x*pxKm,cy+a.y*pxKm);
-      ctx.lineTo(cx+b.x*pxKm,cy+b.y*pxKm);
+      ctx.moveTo(cx+aX*pxKm,cy+aY*pxKm);
+      ctx.lineTo(cx+bX*pxKm,cy+bY*pxKm);
       ctx.stroke();
       // nucleo bianco
       ctx.strokeStyle=`rgba(255,255,255,${(p.cls===1?0.8:1)*fade})`;
       ctx.lineWidth=wBase;
       ctx.beginPath();
-      ctx.moveTo(cx+a.x*pxKm,cy+a.y*pxKm);
-      ctx.lineTo(cx+b.x*pxKm,cy+b.y*pxKm);
+      ctx.moveTo(cx+aX*pxKm,cy+aY*pxKm);
+      ctx.lineTo(cx+bX*pxKm,cy+bY*pxKm);
       ctx.stroke();
     }
 
-    const px=cx+p.x*pxKm,py=cy+p.y*pxKm;
-    ctx.save();ctx.translate(px,py);ctx.rotate(p.trkRad);
+    const[rX,rY]=rot(p.x,p.y);
+    const px=cx+rX*pxKm,py=cy+rY*pxKm;
+    ctx.save();ctx.translate(px,py);ctx.rotate(p.trkRad-hr);
     ctx.fillStyle=p.cls===0?"#8CA0B8":CLS[p.cls].color;
     drawPlaneIcon(ctx,dpr);
     ctx.restore();
@@ -635,6 +682,19 @@ function arOrient(e){
   AR.lastEvt=performance.now();
 }
 
+// i sensori alimentano anche la bussola del radar, non solo la vista AR
+window.addEventListener("deviceorientationabsolute",arOrient,true);
+window.addEventListener("deviceorientation",arOrient,true);
+
+// direzione orizzontale verso cui è rivolto il telefono (null senza bussola assoluta)
+function compassHeading(){
+  if(!AR.hasAbs||!AR.f||performance.now()-(AR.lastEvt||0)>3000)return null;
+  const hu=Math.hypot(AR.u[0],AR.u[1]),hf=Math.hypot(AR.f[0],AR.f[1]);
+  if(Math.max(hu,hf)<0.2)return null;
+  const v=hu>=hf?AR.u:AR.f; // telefono piatto: lato alto dello schermo; telefono dritto: fotocamera
+  return(Math.atan2(v[0],v[1])*180/Math.PI+360)%360;
+}
+
 async function arOpen(){
   if(!window.isSecureContext){
     alert("Questa funzione richiede la versione online (HTTPS): GPS, bussola e fotocamera non sono disponibili da file locale.");
@@ -646,8 +706,6 @@ async function arOpen(){
       if(await DeviceOrientationEvent.requestPermission()!=="granted")throw 0;
     }
   }catch(e){alert("Senza accesso ai sensori di orientamento non posso capire dove punti.");return;}
-  window.addEventListener("deviceorientationabsolute",arOrient,true);
-  window.addEventListener("deviceorientation",arOrient,true);
 
   AR.pos={lat:city.lat,lon:city.lon,alt:300}; // ripiego immediato: centro città
   if(navigator.geolocation)navigator.geolocation.getCurrentPosition(
@@ -671,8 +729,6 @@ async function arOpen(){
 function arCloseFn(){
   AR.on=false;
   if(AR.stream){AR.stream.getTracks().forEach(t=>t.stop());AR.stream=null;}
-  window.removeEventListener("deviceorientationabsolute",arOrient,true);
-  window.removeEventListener("deviceorientation",arOrient,true);
   $("ar").style.display="none";
   renderPlanes(); // mostra subito l'evidenziazione in tabella
 }
@@ -773,8 +829,8 @@ function arFrame(now){
 $("btnAR").onclick=arOpen;
 $("arClose").onclick=arCloseFn;
 
-// aggiornamento automatico del traffico ogni 60 s, solo a pagina visibile
-setInterval(()=>{if(document.visibilityState==="visible")loadPlanes();},60000);
+// aggiornamento automatico ogni 60 s, solo a pagina visibile: traffico + segnalino dell'ora
+setInterval(()=>{if(document.visibilityState==="visible"){loadPlanes();markNow();}},60000);
 
 renderCities();
 loadWx();
