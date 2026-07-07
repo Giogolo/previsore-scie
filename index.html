@@ -326,7 +326,7 @@ function renderWx(){
 }
 
 // ── Traffico ADS-B ──
-let lastPlanes=null,lastLow=0,lastProv=null;
+let lastPlanes=null,lastLow=0,lastProv=null,lastFetchT=0;
 const ADSB_PROVIDERS=[
   {name:"adsb.lol",url:c=>`https://api.adsb.lol/v2/lat/${c.lat}/lon/${c.lon}/dist/40`},
   {name:"adsb.fi",url:c=>`https://opendata.adsb.fi/api/v3/lat/${c.lat}/lon/${c.lon}/dist/40`},
@@ -359,10 +359,11 @@ async function loadPlanes(){
         callsign:(a.flight||"").trim()||((a.hex||"").toUpperCase())||"—",
         type:a.t||null,hM:Math.round(hM),fl:Math.round(altFt/100),
         lat:a.lat,lon:a.lon,trk:a.track??a.true_heading??null,gs:a.gs??null,
+        seen:Date.now(),
       });
     }
     highs.sort((x,y)=>y.hM-x.hM);
-    lastPlanes=highs;lastLow=low;lastProv=j._prov;
+    lastPlanes=highs;lastLow=low;lastProv=j._prov;lastFetchT=Date.now();
     radarSync();
     renderPlanes();
     loadRoutes();
@@ -619,15 +620,26 @@ function arAngles(p){
 }
 
 function arOrient(e){
-  let h=null;
-  if(typeof e.webkitCompassHeading==="number")h=e.webkitCompassHeading;   // iOS
-  else if(e.alpha!=null){
-    const cand=(360-e.alpha)%360;
-    if(e.absolute){h=cand;AR.hasAbs=true;}   // bussola assoluta: la preferita
-    else if(!AR.hasAbs)h=cand;               // relativa: si aggiorna comunque, meglio di niente
+  if(e.alpha==null&&e.beta==null)return;
+  const d2r=Math.PI/180;
+  // alpha di riferimento: su iOS lo zero è arbitrario, si usa la bussola vera
+  let alpha=e.alpha??0;
+  if(typeof e.webkitCompassHeading==="number"){alpha=360-e.webkitCompassHeading;AR.hasAbs=true;}
+  else if(e.absolute)AR.hasAbs=true;
+  else if(AR.hasAbs)alpha=null; // evento relativo ma ho già una fonte assoluta: uso solo beta/gamma
+  // direzione della fotocamera posteriore = Rz(α)·Rx(β)·Ry(γ)·(0,0,−1), assi terra X=est Y=nord Z=su.
+  // Usare beta da solo sbaglia appena il telefono è ruotato di lato: serve anche gamma.
+  const b=(e.beta||0)*d2r,g=(e.gamma||0)*d2r;
+  const cb=Math.cos(b),sb=Math.sin(b),cg=Math.cos(g),sg=Math.sin(g);
+  const x=-sg,y=sb*cg,z=-cb*cg;                    // fotocamera con α=0
+  const el=Math.asin(Math.max(-1,Math.min(1,z)))/d2r; // 0 = orizzonte, +90 = zenit
+  AR.pitch+=0.3*(el-AR.pitch);                     // smorza il tremolio dei sensori
+  if(alpha!=null){
+    const a=alpha*d2r,ca=Math.cos(a),sa=Math.sin(a);
+    const h=(Math.atan2(ca*x-sa*y,sa*x+ca*y)/d2r+360)%360;
+    if(AR.heading==null)AR.heading=h;
+    else{const d=((h-AR.heading+540)%360)-180;AR.heading=(AR.heading+0.3*d+360)%360;}
   }
-  if(h!=null)AR.heading=h;
-  if(e.beta!=null)AR.pitch=e.beta-90; // telefono verticale: 0 = orizzonte, +90 = zenit
   AR.lastEvt=performance.now();
 }
 
@@ -655,6 +667,8 @@ async function arOpen(){
     AR.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false});
     $("arVideo").srcObject=AR.stream;
   }catch(e){arMsg("Fotocamera non disponibile: modalità solo puntatore.");}
+
+  if(Date.now()-lastFetchT>20000)loadPlanes(); // dati freschi: le posizioni invecchiano in fretta
 
   $("ar").style.display="block";
   AR.on=true;
@@ -685,10 +699,33 @@ function arFrame(now){
   ctx.strokeStyle="#ffffff66";ctx.lineWidth=dpr;
   ctx.beginPath();ctx.arc(W/2,H/2,14*dpr,0,6.284);ctx.stroke();
 
+  // orizzonte artificiale con punti cardinali: se non coincide con quello vero, la bussola va calibrata
+  const yh=H/2+AR.pitch/VFOV*H;
+  if(yh>-20&&yh<H+20){
+    ctx.strokeStyle="#ffffff44";ctx.lineWidth=dpr;
+    ctx.beginPath();ctx.moveTo(0,yh);ctx.lineTo(W,yh);ctx.stroke();
+    const card={0:"N",90:"E",180:"S",270:"O"};
+    for(let azm=0;azm<360;azm+=30){
+      const dA=((azm-(AR.heading||0)+540)%360)-180;
+      if(Math.abs(dA)>HFOV/2+4)continue;
+      const xt=W/2+dA/HFOV*W;
+      ctx.beginPath();ctx.moveTo(xt,yh-4*dpr);ctx.lineTo(xt,yh+4*dpr);ctx.stroke();
+      if(card[azm]){ctx.fillStyle="#ffffffcc";ctx.fillText(card[azm],xt-4*dpr,yh-8*dpr);}
+    }
+  }
+
   let best=null,bestAng=999,bestInfo=null;
+  const nowMs=Date.now();
   for(const p of(lastPlanes||[])){
     if(p.lat==null)continue;
-    const{az,el,dKm}=arAngles(p);
+    // avanza la posizione per stima dall'ultimo dato ADS-B (come nel radar): a 900 km/h
+    // un minuto di ritardo sono 15 km di errore
+    const age=Math.min(180,(nowMs-(p.seen||nowMs))/1000);
+    const kmS=((p.gs||450)*1.852)/3600, tr=((p.trk??0))*Math.PI/180;
+    const pos={hM:p.hM,
+      lat:p.lat+kmS*Math.cos(tr)*age/111.32,
+      lon:p.lon+kmS*Math.sin(tr)*age/(111.32*Math.cos(p.lat*Math.PI/180))};
+    const{az,el,dKm}=arAngles(pos);
     const dAz=((az-(AR.heading||0)+540)%360)-180;
     const dEl=el-AR.pitch;
     const ang=Math.hypot(dAz,dEl);
@@ -714,6 +751,8 @@ function arFrame(now){
     arMsg(`🎯 ${best.callsign}${best.route?" · "+best.route:""} · ${best.type||"?"} · FL${best.fl} · ${Math.round(bestInfo.dKm)} km · ${CLS[bestInfo.cls].label}`);
   }else if(!AR.lastEvt||now-AR.lastEvt>2500){
     arMsg("⚠️ Nessun dato dai sensori di orientamento. Da file scaricato il browser blocca bussola e fotocamera: serve la versione online (HTTPS). Controlla anche che il risparmio energetico sia spento.");
+  }else if(Math.abs((screen.orientation&&screen.orientation.angle)||0)%180===90){
+    arMsg("↻ Ruota il telefono in verticale: il puntatore è calibrato per la presa a ritratto.");
   }else{
     arMsg(`bussola ${AR.heading!=null?Math.round(AR.heading)+"°":"—"}${AR.hasAbs?"":" (relativa)"} · inclinazione ${Math.round(AR.pitch)}° · muovi il telefono verso un aereo`);
   }
