@@ -180,6 +180,8 @@ function classify(tC,rh,pHpa,eta=0.35){
 }
 
 let city=CITIES[0], wx=null, nowIdx=null, profile=null, selCell=null, lastWxT=0;
+// riparti dall'ultima città scelta, non sempre da Bolzano
+try{const f=CITIES.find(c=>c.name===localStorage.getItem("previsore-citta"));if(f)city=f;}catch(e){}
 // tre modelli globali: sull'umidità a queste quote divergono spesso, la mediana
 // mette in minoranza quello che sbaglia
 const WX_MODELS=["icon_seamless","ecmwf_ifs025","gfs_seamless"];
@@ -198,7 +200,9 @@ function renderCities(){
     `<button class="${c.name===city.name?"on":""}" data-c="${c.name}">${c.name}</button>`).join("");
   $("cities").querySelectorAll("button").forEach(b=>b.onclick=()=>{
     city=CITIES.find(c=>c.name===b.dataset.c);
+    try{localStorage.setItem("previsore-citta",city.name)}catch(e){}
     radar.planes.clear();
+    lastPlanes=null;lastLow=0; // via i dati della città precedente
     renderCities(); loadWx(); loadPlanes();
   });
   $("trafficTitle").textContent=`Adesso sopra ${city.name} · raggio 75 km`;
@@ -384,17 +388,17 @@ const ADSB_PROVIDERS=[
   {name:"adsb.fi via proxy",url:c=>`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://opendata.adsb.fi/api/v3/lat/${c.lat}/lon/${c.lon}/dist/40`)}`},
 ];
 async function loadPlanes(){
-  $("planesOut").innerHTML='<div class="note">Interrogo la rete ADS-B…</div>';
-  const errs=[];
+  if(!lastPlanes)$("planesOut").innerHTML='<div class="note">Interrogo la rete ADS-B…</div>';
+  const ask=prov=>fetch(prov.url(city),AbortSignal.timeout?{signal:AbortSignal.timeout(6000)}:{})
+    .then(r=>{if(!r.ok)throw new Error(`${prov.name}: HTTP ${r.status}`);return r.json();})
+    .then(j=>{if(!j||!Array.isArray(j.ac))throw new Error(`${prov.name}: risposta vuota`);j._prov=prov.name;return j;});
   let j=null;
-  for(const prov of ADSB_PROVIDERS){
-    try{
-      const r=await fetch(prov.url(city));
-      if(!r.ok)throw new Error("HTTP "+r.status);
-      j=await r.json();
-      j._prov=prov.name;
-      break;
-    }catch(e){errs.push(`${prov.name}: ${e.message||e}`);}
+  const errs=[];
+  // fonti dirette in parallelo (vince la più veloce), proxy solo come seconda ondata:
+  // in serie e senza timeout un fornitore lento bloccava il radar per decine di secondi
+  for(const wave of[ADSB_PROVIDERS.slice(0,2),ADSB_PROVIDERS.slice(2)]){
+    try{j=await Promise.any(wave.map(ask));break;}
+    catch(e){errs.push(...(e.errors||[e]).map(x=>x.message||x));}
   }
   try{
     if(!j)throw new Error(errs.join(" · "));
@@ -418,6 +422,7 @@ async function loadPlanes(){
     renderPlanes();
     loadRoutes();
   }catch(e){
+    if(lastPlanes)return; // aggiornamento fallito ma ho già dati in tabella: li tengo
     $("planesOut").innerHTML=`<div class="warn">Nessun provider ADS-B raggiungibile (${esc(e.message||e)}).<br><br>
     Se questo file è aperto <b>nell'anteprima di Claude</b>, la sandbox blocca tutte le chiamate di rete:
     scarica il file e aprilo nel browser (Chrome/Firefox). Se sei già nel browser, riprova tra qualche secondo.</div>`;
