@@ -86,7 +86,7 @@
   <header>
     <div class="eyebrow">Sezione verticale + traffico live · atmosfera superiore · Italia</div>
     <h1>Previsore di scie di condensazione</h1>
-    <div class="sub">Schmidt-Appleman per singolo aereo · meteo Open-Meteo · traffico ADS-B (adsb.lol)</div>
+    <div class="sub">Schmidt-Appleman per singolo aereo · meteo Open-Meteo, mediana ICON·ECMWF·GFS · traffico ADS-B (adsb.lol)</div>
   </header>
 
   <div class="cities" id="cities"></div>
@@ -122,8 +122,10 @@
     tra i livelli 300/250/200 hPa, rendimento propulsivo η stimato dal tipo di aeromobile, criterio di
     Schmidt-Appleman (1953) calcolato su misura. Se l'aria è sovrassatura rispetto al ghiaccio
     (RH<sub>ghiaccio</sub> ≥ 100%) i cristalli non evaporano e la scia persiste; oltre il ~110% si allarga
-    in cirri. La previsione a 72 ore usa η = 0,35 (flotta media). Fonti: Open-Meteo per il meteo in quota,
-    reti comunitarie ADS-B per il traffico.
+    in cirri. La previsione a 72 ore usa η = 0,35 (flotta media). Fonti: Open-Meteo per il meteo in quota
+    — per ogni ora e quota si prende la <b>mediana di tre modelli</b> (ICON, ECMWF IFS, GFS), perché
+    sull'umidità a queste quote i modelli divergono spesso e la mediana esclude quello che sbaglia;
+    il meteo si riaggiorna da solo ogni mezz'ora. Traffico: reti comunitarie ADS-B.
   </footer>
 </div>
 
@@ -177,7 +179,10 @@ function classify(tC,rh,pHpa,eta=0.35){
   return{cls,rhIce:Math.round(rhIce),tC:Math.round(tC)};
 }
 
-let city=CITIES[0], wx=null, nowIdx=null, profile=null, selCell=null;
+let city=CITIES[0], wx=null, nowIdx=null, profile=null, selCell=null, lastWxT=0;
+// tre modelli globali: sull'umidità a queste quote divergono spesso, la mediana
+// mette in minoranza quello che sbaglia
+const WX_MODELS=["icon_seamless","ecmwf_ifs025","gfs_seamless"];
 
 const $=id=>document.getElementById(id);
 function toggleInfo(id){
@@ -204,14 +209,29 @@ async function loadWx(){
   $("wxOut").innerHTML='<div class="loadmsg">Scarico i radiosondaggi previsti…</div>';
   wx=null;profile=null;selCell=null;
   const vars=LEVELS.flatMap(L=>[`temperature_${L.p}hPa`,`relative_humidity_${L.p}hPa`,`geopotential_height_${L.p}hPa`]).join(",");
+  const base=`https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&hourly=${vars}&forecast_days=3&timezone=auto`;
   try{
-    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&hourly=${vars}&forecast_days=3&timezone=auto`);
+    let r=await fetch(base+"&models="+WX_MODELS.join(","));
+    if(!r.ok)r=await fetch(base); // ripiego: modello singolo best_match
     if(!r.ok)throw new Error("HTTP "+r.status);
     wx=await r.json();
   }catch(e){
     $("wxOut").innerHTML=`<div class="panel warn" style="margin:0">Impossibile raggiungere Open-Meteo (${esc(e.message||e)}). Controlla la connessione e ricarica.</div>`;
     return;
   }
+  // riduci i tre modelli alla mediana, ora per ora, sotto i nomi base che usa il resto del codice
+  for(const L of LEVELS)for(const v of["temperature","relative_humidity","geopotential_height"]){
+    const key=`${v}_${L.p}hPa`;
+    const srcs=WX_MODELS.map(m=>wx.hourly[`${key}_${m}`]).filter(Boolean);
+    if(!srcs.length)continue; // risposta a modello singolo: i nomi base ci sono già
+    wx.hourly[key]=wx.hourly.time.map((_,i)=>{
+      const vals=srcs.map(s=>s[i]).filter(x=>x!=null).sort((a,b)=>a-b);
+      if(!vals.length)return null;
+      const m=(vals.length-1)/2;
+      return m%1?(vals[Math.floor(m)]+vals[Math.ceil(m)])/2:vals[m];
+    });
+  }
+  lastWxT=Date.now();
   const off=wx.utc_offset_seconds||0;
   const local=new Date(Date.now()+off*1000).toISOString().slice(0,13);
   nowIdx=Math.max(0,wx.hourly.time.findIndex(t=>t.slice(0,13)===local));
@@ -829,8 +849,12 @@ function arFrame(now){
 $("btnAR").onclick=arOpen;
 $("arClose").onclick=arCloseFn;
 
-// aggiornamento automatico ogni 60 s, solo a pagina visibile: traffico + segnalino dell'ora
-setInterval(()=>{if(document.visibilityState==="visible"){loadPlanes();markNow();}},60000);
+// aggiornamento automatico ogni 60 s, solo a pagina visibile: traffico + segnalino dell'ora;
+// il meteo si riscarica ogni mezz'ora (prima restava quello dell'apertura pagina)
+setInterval(()=>{if(document.visibilityState==="visible"){
+  loadPlanes();markNow();
+  if(Date.now()-lastWxT>1800000)loadWx();
+}},60000);
 
 renderCities();
 loadWx();
